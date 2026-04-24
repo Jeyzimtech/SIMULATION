@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Solar-Thermal Water Purification</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@500;700&family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #070b14;
+            --panel-bg: rgba(15, 23, 42, 0.6);
+            --water: #00E5FF;
+            --water-flow: #0984E3;
+            --steam: #DFE6E9;
+            --heat: #FF7600;
+            --solar: #F1C40F;
+            --warn: #FF0055;
+            --text-main: #FFFFFF;
+            --font-ui: 'Inter', sans-serif;
+            --font-tech: 'Roboto Mono', monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: 
+                linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        /* ----- TOP NAVBAR ----- */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: rgba(0,0,0,0.4);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            z-index: 100;
+        }
+
+        .navbar h1 {
+            font-size: 1.3rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #E2E8F0;
+        }
+
+        .controls { display: flex; gap: 10px; }
+        .btn { 
+            padding: 8px 16px; 
+            background: rgba(0,229,255,0.05); 
+            border: 1px solid var(--water); 
+            color: var(--water); 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            text-transform: uppercase; 
+            font-size: 0.75rem; 
+            transition: 0.2s;
+            font-family: var(--font-tech);
+        }
+        .btn:hover, .btn.active { background: var(--water); color: #000; box-shadow: 0 0 10px rgba(0,229,255,0.5); }
+        
+        .btn-warn { border-color: var(--warn); color: var(--warn); background: rgba(255,0,85,0.05); }
+        .btn-warn:hover { background: var(--warn); color: #fff; box-shadow: 0 0 10px rgba(255,0,85,0.5); }
+
+        .btn-graph { border-color: #a855f7; color: #a855f7; background: rgba(168,85,247,0.05); }
+        .btn-graph:hover { background: #a855f7; color: #fff; box-shadow: 0 0 10px rgba(168,85,247,0.5); }
+
+        /* ----- LAYOUT ----- */
+        .main-container {
+            display: flex;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ----- LEFT SIDEBAR ----- */
+        .sidebar {
+            width: 280px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-right: 1px solid rgba(255,255,255,0.05);
+            background: rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+
+        .panel {
+            background: #0f172a;
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 6px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .panel-title {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .panel-value {
+            font-family: var(--font-ui);
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #fff;
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+        }
+
+        .panel-value span {
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .val-solar { color: var(--solar); }
+        .val-yield { color: var(--water); }
+
+        .salinity-panel {
+            margin-top: auto;
+            border-color: rgba(255,0,85,0.2);
+            background: linear-gradient(180deg, #0f172a 0%, rgba(255,0,85,0.05) 100%);
+        }
+        
+        .salinity-panel .panel-title { color: var(--warn); }
+        
+        .salinity-bar-bg {
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+            margin-top: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .salinity-bar-fill {
+            height: 100%;
+            background: var(--warn);
+            width: 50%;
+            box-shadow: 0 0 10px var(--warn);
+            transition: width 0.3s ease;
+        }
+        .salinity-val {
+            font-family: var(--font-tech);
+            font-size: 0.75rem;
+            color: var(--warn);
+            margin-top: 8px;
+        }
+
+        /* ----- MAIN SCHEMATIC CANVAS ----- */
+        .canvas-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .diagram-stage {
+            width: 1450px; /* slightly wider to give padding on the right */
+            height: 800px;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform-origin: center center;
+        }
+
+        /* SVG Layout */
+        .svg-board { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events: none; z-index: 1;}
+        .pipe { fill:none; stroke: rgba(255,255,255,0.15); stroke-width: 12; stroke-linejoin: round; }
+        
+        .flow { fill:none; stroke-width: 8; stroke-dasharray: 12 12; animation: flowAnim 1s linear infinite; }
+        .f-water { stroke: var(--water); filter: drop-shadow(0 0 5px var(--water)); }
+        .f-steam { stroke: var(--steam); filter: drop-shadow(0 0 6px var(--steam)); animation-duration: 0.6s; stroke-dasharray: 15 15; }
+        .f-heat { stroke: var(--heat); filter: drop-shadow(0 0 10px var(--heat)); stroke-dasharray: 20 20; animation-duration: 2s; }
+        .f-ray { stroke: rgba(241, 196, 15, 0.4); stroke-width: 3; }
+        .f-dirty { stroke: #8B4513; animation-duration: 0.4s; }
+        
+        @keyframes flowAnim { to { stroke-dashoffset: -24; } }
+
+        /* HARDWARE COMPONENTS CSS */
+        .hw { position: absolute; z-index: 5; }
+
+        /* Sun */
+        .hw-sun { left: 40px; top: 40px; width: 100px; height: 100px; border-radius: 50%; background: radial-gradient(#FFF700, #FF8C00); box-shadow: 0 0 60px #FF8C00; }
+
+        /* Solar Panel */
+        .hw-solar-panel { left: 30px; top: 300px; width: 100px; height: 100px; display: flex; flex-direction: column; align-items: center; }
+        .sp-board { width: 90px; height: 60px; background: #1e40af; border: 3px solid #94a3b8; border-radius: 2px; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 2px; padding: 2px; transform: perspective(200px) rotateX(15deg); box-shadow: 0 10px 15px rgba(0,0,0,0.5); }
+        .sp-cell { background: #1d4ed8; border: 1px solid rgba(255,255,255,0.1); }
+        .sp-stand { width: 8px; height: 25px; background: #64748b; margin-top: -3px; }
+        .sp-base { width: 40px; height: 6px; background: #94a3b8; border-radius: 3px; }
+
+        /* Parabolic Mirror */
+        .hw-mirror { left: 1190px; top: 600px; width: 160px; height: 70px; border-bottom: 12px solid #cbd5e1; border-radius: 0 0 160px 160px; box-shadow: 0 10px 15px rgba(255,255,255,0.1); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+        .mirror-stand { width: 12px; height: 30px; background: #64748b; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); }
+        .mirror-base { width: 60px; height: 8px; background: #94a3b8; border-radius: 4px; position: absolute; top: calc(100% + 30px); left: 50%; transform: translateX(-50%); }
+        
+        /* Solar Pump - Real-looking */
+        .hw-pump { left: 290px; top: 230px; width: 60px; height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .p-cap { width: 44px; height: 12px; background: #64748b; border: 2px solid #1e293b; border-radius: 6px; z-index: 2;}
+        .p-body { width: 60px; height: 60px; background: linear-gradient(90deg, #94a3b8, #f8fafc, #64748b); border: 2px solid #1e293b; z-index: 1;}
+        .p-pipe-cross { position: absolute; width:100%; height:12px; top: 38px; background: #334155; z-index:0;}
+
+        /* Tanks Standard */
+        .tank { border: 3px solid rgba(255,255,255,0.2); border-radius: 8px; background: linear-gradient(180deg, rgba(0,0,0,0.8), rgba(0,0,0,0.4)); overflow: hidden; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+        .t-water { width: 100%; position: absolute; bottom: 0; background: linear-gradient(0deg, #0984E3, #00E5FF); transition: height 0.5s; border-top: 2px solid rgba(255,255,255,0.7); box-shadow: 0 -2px 10px rgba(0,229,255,0.4); }
+
+        .hw-filter { left: 400px; top: 90px; width: 180px; height: 180px; border-radius: 12px; }
+        .mesh-rods { position: absolute; top: 10%; left: 5%; width: 90%; height: 80%; display: flex; justify-content: space-around; z-index: 2; }
+        .mesh-rod { width: 25%; height: 100%; border: 1px solid #475569; background: repeating-linear-gradient(45deg, #1e293b, #1e293b 6px, #64748b 6px, #64748b 12px); border-radius: 4px; box-shadow: 2px 0 5px rgba(0,0,0,0.5); }
+
+        .hw-condenser { left: 700px; top: 250px; width: 90px; height: 200px; border-radius: 45px; }
+        .hw-storage { left: 150px; top: 550px; width: 180px; height: 140px; border-radius: 12px; }
+
+        .hw-boiler { left: 880px; top: 220px; width: 240px; height: 280px; border-radius: 16px; }
+        .f-wax-loop { fill:none; stroke-width: 8; stroke-dasharray: 25 25; animation: flowAnim 1.5s linear infinite; stroke: #f8fafc; transition: stroke 1s, filter 1s; }
+        .steam-gas { position: absolute; top: 0; left: 0; width: 100%; height: 50%; background: radial-gradient(ellipse at top, rgba(223, 230, 233, 0.4) 0%, transparent 70%); animation: cloudPulse 2s infinite alternate; z-index: 1;}
+        @keyframes cloudPulse { to { opacity: 0.6; transform: translateY(5px); } }
+        .bubbles { position: absolute; bottom: 0; width: 100%; height: 100%; background-image: radial-gradient(circle, rgba(255,255,255,0.6) 2px, transparent 2px); background-size: 20px 25px; animation: boilAnim 0.5s linear infinite; z-index: 2; opacity:0; }
+        @keyframes boilAnim { from {background-position: 0 25px;} to {background-position: 0 0;} }
+
+        .hw-wax { left: 1220px; top: 380px; width: 100px; height: 140px; border-radius: 8px; border: 2px solid #cbd5e1; overflow: hidden; box-shadow: inset 0 0 15px rgba(0,0,0,0.3); background: rgba(255,255,255,0.05); }
+        .wax-core { width: 100%; height: 100%; background: #f8fafc; transition: background 1s, box-shadow 1s; opacity: 0.9; }
+
+        .t-valve { position: absolute; width: 24px; height: 24px; background: #1e293b; border: 2px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; z-index: 10;}
+        .t-valve::after { content: ''; width: 3px; height: 130%; background: #fff; transform: rotate(0deg); transition: 0.3s; }
+        .t-valve.open::after { transform: rotate(90deg); background: var(--warn); }
+
+        /* UI Pitch Labels */
+        .ui-label {
+            position: absolute;
+            color: #f8fafc;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 50;
+            white-space: nowrap;
+        }
+
+        .ui-label.has-line {
+            border-left: 2px solid var(--water);
+            padding-left: 8px;
+        }
+
+        .ui-label.heat-line { border-left-color: var(--heat); }
+        .ui-label.warn-line { border-left-color: var(--warn); }
+
+        .sensor-box {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--water);
+            padding: 4px 8px;
+            font-family: var(--font-tech);
+            font-size: 0.75rem;
+            color: var(--water);
+            border-radius: 4px;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sensor-box.heat { border-color: var(--heat); color: var(--heat); }
+        .sensor-box.warn { border-color: var(--warn); color: var(--warn); }
+        .sensor-label { font-family: var(--font-ui); font-size: 0.6rem; color: #94a3b8; margin-bottom: 2px; text-transform: uppercase;}
+
+        /* Modal for Graphs */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: #0f172a;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            max-width: 90%;
+            max-height: 90%;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute; top: 10px; right: 15px;
+            color: #fff; font-size: 24px; cursor: pointer;
+            background: none; border: none;
+        }
+        .modal img { max-width: 100%; max-height: calc(90vh - 40px); object-fit: contain; }
+
+        /* ----- RESPONSIVE ----- */
+        @media (max-width: 1024px) {
+            .main-container {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                flex-direction: row;
+                overflow-x: auto;
+                padding: 10px;
+                gap: 15px;
+                border-right: none;
+                border-bottom: 1px solid rgba(255,255,255,0.05);
+            }
+            .panel {
+                flex: 0 0 auto;
+                min-width: 220px;
+            }
+            .salinity-panel {
+                margin-top: 0;
+            }
+        }
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+                padding: 15px;
+            }
+            .navbar h1 {
+                font-size: 1.1rem;
+            }
+            .controls {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .btn {
+                padding: 8px 12px;
+                font-size: 0.7rem;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- TOP NAVBAR -->
+    <div class="navbar">
+        <h1>Autonomous Solar-Thermal Water Purification</h1>
+        <div class="controls">
+            <button class="btn active" id="b-pause">Pause</button>
+            <button class="btn" id="b-play">Normal Spd</button>
+            <button class="btn" id="b-ff">Fast Forward</button>
+            <button class="btn btn-graph" id="b-graph">View Graphs</button>
+            <button class="btn btn-warn" id="b-flush">Emergency Sludge Flush</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <!-- LEFT SIDEBAR -->
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-title">Mission Clock</div>
+                <div class="panel-value">Day <span id="ui-day" style="color:#fff; font-size:1.8rem; margin: 0 5px;">1</span> <span id="ui-hr" style="font-size:1.2rem; font-family:var(--font-tech); margin-left:10px;">14:49</span></div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-title">Solar Radiance (DNI)</div>
+                <div class="panel-value val-solar"><span id="ui-dni" style="color:var(--solar); font-size:1.8rem; margin-right:5px;">740</span> <span style="font-size:0.9rem;">W/m²</span></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Extracted Yield</div>
+                <div class="panel-value val-yield"><span id="ui-yield" style="color:var(--water); font-size:1.8rem; margin-right:5px;">30.5</span> <span style="font-size:0.9rem;">Liters</span></div>
+            </div>
+
+            <div class="panel salinity-panel">
+                <div class="panel-title">Feed Flow Salinity Test</div>
+                <div class="salinity-bar-bg">
+                    <div class="salinity-bar-fill" id="ui-tds-bar"></div>
+                </div>
+                <div class="salinity-val"><span id="ui-tds">4854</span> PPM</div>
+            </div>
+        </div>
+
+        <!-- MAIN SCHEMATIC CANVAS -->
+        <div class="canvas-wrapper">
+            <div class="diagram-stage">
+                
+                <!-- SVG PIPES & FLOWS -->
+                <svg class="svg-board" viewBox="0 0 1450 800">
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(241, 196, 15, 0.8)" />
+                        </marker>
+                    </defs>
+                    <path class="f-ray" id="ray-1" d="M 1210 590 L 1240 530" marker-end="url(#arrow)" />
+                    <path class="f-ray" id="ray-2" d="M 1270 600 L 1270 530" marker-end="url(#arrow)" />
+                    <path class="f-ray" id="ray-3" d="M 1330 590 L 1300 530" marker-end="url(#arrow)" />
+                    
+                    <!-- ray from sun to solar panel -->
+                    <path class="f-ray" id="ray-4" d="M 80 140 L 70 300" marker-end="url(#arrow)" />
+
+                    <path class="pipe" d="M 40 270 L 320 270" />
+                    <path class="flow f-water" id="f-in" d="M 40 270 L 320 270" />
+
+                    <path class="pipe" d="M 320 270 L 370 270 L 370 190 L 400 190" />
+                    <path class="flow f-water" id="f-p2f" d="M 320 270 L 370 270 L 370 190 L 400 190" />
+
+                    <path class="pipe" d="M 580 190 L 660 190 L 660 360 L 700 360" />
+                    <path class="flow f-water" id="f-f2c" d="M 580 190 L 660 190 L 660 360 L 700 360" />
+
+                    <path class="pipe" d="M 790 450 L 880 450" />
+                    <path class="flow f-water" id="f-c2b" d="M 790 450 L 880 450" />
+
+                    <path class="pipe" d="M 1000 220 L 1000 120" />
+                    <path class="flow f-steam" id="f-steam-up" d="M 1000 220 L 1000 120" />
+
+                    <path class="pipe" d="M 1000 120 L 750 120 L 750 250" />
+                    <path class="flow f-steam" id="f-steam-cond" d="M 1000 120 L 750 120 L 750 250" />
+                    
+                    <path class="pipe" d="M 750 250 L 780 280 L 720 320 L 780 360 L 720 400 L 750 430 L 750 470" stroke-width="6" />
+                    <path class="flow f-water" id="f-coil" style="stroke:#fff" d="M 750 250 L 780 280 L 720 320 L 780 360 L 720 400 L 750 430 L 750 470" stroke-width="4" />
+
+                    <path class="pipe" d="M 1000 120 L 1350 120" />
+                    <path class="flow f-steam" id="f-steam-vent" style="stroke: var(--warn); filter: drop-shadow(0 0 5px var(--warn));" d="M 1000 120 L 1350 120" />
+
+                    <path class="pipe" d="M 750 470 L 750 620 L 330 620 L 330 550" />
+                    <path class="flow f-water" id="f-store" d="M 750 470 L 750 620 L 330 620 L 330 550" />
+
+                    <path class="pipe" d="M 1000 500 L 1000 700" />
+                    <path class="flow f-dirty" id="f-drain" d="M 1000 500 L 1000 700" />
+                </svg>
+
+                <svg class="svg-board" viewBox="0 0 1450 800" style="z-index: 6;">
+                    <path class="pipe" d="M 1220 410 L 1080 410 A 20 20 0 0 1 1060 430 L 1060 450 A 20 20 0 0 1 1020 450 L 1020 390 A 20 20 0 0 0 980 390 L 980 450 A 20 20 0 0 1 940 450 L 940 390 A 20 20 0 0 0 900 390 L 900 470 A 20 20 0 0 0 920 490 L 1220 490" stroke-width="14" />
+                    <path class="flow f-wax-loop" id="f-wax-loop" d="M 1220 410 L 1080 410 A 20 20 0 0 1 1060 430 L 1060 450 A 20 20 0 0 1 1020 450 L 1020 390 A 20 20 0 0 0 980 390 L 980 450 A 20 20 0 0 1 940 450 L 940 390 A 20 20 0 0 0 900 390 L 900 470 A 20 20 0 0 0 920 490 L 1220 490" />
+                </svg>
+
+                <!-- HARDWARE DIVS -->
+                <div class="hw hw-sun" id="d-sun"></div>
+                
+                <div class="hw hw-solar-panel">
+                    <div class="sp-board">
+                        <div class="sp-cell"></div><div class="sp-cell"></div><div class="sp-cell"></div><div class="sp-cell"></div>
+                        <div class="sp-cell"></div><div class="sp-cell"></div><div class="sp-cell"></div><div class="sp-cell"></div>
+                        <div class="sp-cell"></div><div class="sp-cell"></div><div class="sp-cell"></div><div class="sp-cell"></div>
+                    </div>
+                    <div class="sp-stand"></div>
+                    <div class="sp-base"></div>
+                </div>
+
+                <div class="hw hw-mirror">
+                    <div class="mirror-stand"></div>
+                    <div class="mirror-base"></div>
+                </div>
+                
+                <div class="hw hw-pump">
+                    <div class="p-cap"></div>
+                    <div class="p-body">
+                        <svg viewBox="0 0 24 24" fill="var(--water)" width="30" height="30" style="margin-top:15px;"><path d="M8 5v14l11-7z"/></svg>
+                    </div>
+                    <div class="p-pipe-cross"></div>
+                </div>
+
+                <div class="hw tank hw-filter">
+                    <div class="t-water" id="lvl-filter" style="height: 60%;"></div>
+                    <div class="mesh-rods">
+                        <div class="mesh-rod"></div><div class="mesh-rod"></div><div class="mesh-rod"></div>
+                    </div>
+                </div>
+
+                <div class="hw tank hw-condenser">
+                    <div class="t-water" style="height: 20%; opacity: 0.8; border-radius: 0 0 45px 45px;"></div>
+                </div>
+
+                <div class="hw tank hw-boiler">
+                    <div class="steam-gas" id="d-steam"></div>
+                    <div class="bubbles" id="d-bubbles"></div>
+                    <div class="t-water" id="lvl-boiler" style="height: 40%;"></div>
+                </div>
+
+                <div class="hw hw-wax">
+                    <div class="wax-core" id="d-wax"></div>
+                </div>
+
+                <div class="hw tank hw-storage">
+                    <div class="t-water" id="lvl-storage" style="height: 15%;"></div>
+                </div>
+
+                <!-- VALVES -->
+                <div class="t-valve" id="v-gas" style="left: 1140px; top: 108px;"></div>
+                <div class="t-valve" id="v-warm" style="left: 825px; top: 438px;"></div>
+                <div class="t-valve" id="v-sludge" style="left: 988px; top: 580px;"></div>
+
+                <!-- LABELS -->
+                <div class="ui-label has-line" style="top: 410px; left: 15px;">Solar<br>panel</div>
+                <div class="ui-label has-line heat-line" style="top: 720px; left: 1190px;">parabolic concentrated solar<br>directing heat to the paraffin wax</div>
+                <div class="ui-label has-line" style="top: 60px; left: 400px;">pre-Filtration Chamber</div>
+                
+                <div class="ui-label has-line" style="top: 190px; left: 290px;">Solar Pump</div>
+                <div class="ui-label has-line" style="top: 240px; left: 110px;">Salinated<br>Water In</div>
+                
+                <div class="ui-label has-line" style="top: 160px; left: 580px;">filtered (Clean)<br>Water</div>
+                
+                <div class="ui-label has-line" style="top: 90px; left: 850px;">steam Outlet</div>
+                
+                <div class="ui-label has-line" style="top: 420px; left: 790px;">warm Water In</div>
+                
+                <div class="ui-label has-line" style="top: 700px; left: 150px;">clear Water Storage Tank</div>
+                
+                <div class="ui-label has-line heat-line" style="top: 435px; left: 1120px;">heat Conductor Wire</div>
+                <div class="ui-label has-line heat-line" style="top: 380px; left: 1150px;">in</div>
+                <div class="ui-label has-line heat-line" style="top: 500px; left: 1150px;">out</div>
+                <div class="ui-label has-line heat-line" style="top: 350px; left: 1220px;">paraffin Wax</div>
+                
+                <div class="ui-label" style="top: 70px; left: 1130px;">valve</div>
+                <div class="ui-label has-line warn-line" style="top: 140px; left: 1200px;">outlet For Gases<br>With Boiling Point &lt;100°C</div>
+                
+                <div class="ui-label has-line warn-line" style="top: 610px; left: 1020px;">valve For Removing Sludge</div>
+
+                <!-- SENSORS (Boxes) -->
+                <div class="sensor-box" style="top: 50px; left: 1040px;">
+                    <div class="sensor-label">SENSOR</div>
+                    <div id="l-steam">100.0°C</div>
+                </div>
+                
+                <div class="sensor-box" style="top: 50px; left: 1250px; color:var(--text-main); border-color:#334155;">
+                    <div class="sensor-label">SENSOR</div>
+                    <div id="l-vent">CLOSED</div>
+                </div>
+
+                <div class="sensor-box" style="top: 480px; left: 810px;">
+                    <div class="sensor-label">SENSOR</div>
+                    <div id="l-warm">40.0°C</div>
+                </div>
+                
+                <div class="sensor-box warn" style="top: 670px; left: 975px;">
+                    <div class="sensor-label">SENSOR</div>
+                    <div id="l-sludge">TDS/Flow</div>
+                </div>
+                
+                <div class="sensor-box warn" style="top: 290px; left: 140px;">
+                    <div class="sensor-label">SENSOR</div>
+                    <div id="l-tds-sensor">8016 PPM</div>
+                </div>
+                
+                <div class="sensor-box heat" style="top: 530px; left: 1250px;">
+                    <div class="sensor-label">SENSOR</div>
+                    <div id="l-wax-t">116.5°C</div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- GRAPH MODAL -->
+    <div class="modal" id="graph-modal">
+        <div class="modal-content">
+            <button class="modal-close" id="b-close-graph">&times;</button>
+            <img src="../simulation_graphs.png" alt="Simulation Graphs" onerror="this.src='simulation_graphs.png'; this.onerror=null;">
+        </div>
+    </div>
+
+    <script>
+        function resize() {
+            const wrap = document.querySelector('.canvas-wrapper');
+            const stage = document.querySelector('.diagram-stage');
+            const scale = Math.min(wrap.clientWidth / 1450, wrap.clientHeight / 800);
+            stage.style.transform = `translate(-50%, -50%) scale(${scale * 0.95})`;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // UI Controls
+        const graphModal = document.getElementById('graph-modal');
+        document.getElementById('b-graph').onclick = () => graphModal.classList.add('active');
+        document.getElementById('b-close-graph').onclick = () => graphModal.classList.remove('active');
+
+        // Simulation Linkage (Reading CSV data exported by python)
+        let simData = [];
+        let simIndex = 0;
+        let loopCount = 0;
+        let isRunning = false;
+        let speedMultiplier = 1;
+
+        async function loadSimulationData() {
+            try {
+                // Try parent dir first, then current dir
+                let resp = await fetch('../simulation_results.csv');
+                if(!resp.ok) resp = await fetch('simulation_results.csv');
+                if(!resp.ok) throw new Error("CSV not found");
+                
+                const text = await resp.text();
+                const lines = text.trim().split('\n');
+                const headers = lines[0].split(',');
+                
+                simData = lines.slice(1).map(line => {
+                    const vals = line.split(',');
+                    let obj = {};
+                    headers.forEach((h, i) => obj[h.trim()] = parseFloat(vals[i]));
+                    return obj;
+                });
+                
+                if(simData.length > 0) {
+                    setSpd(document.getElementById('b-play'), 1);
+                    requestAnimationFrame(playbackLoop);
+                }
+            } catch(e) {
+                console.log("Could not load Python simulation data. Running fallback JS physics.");
+                startJSPhysicsFallback();
+            }
+        }
+
+        document.getElementById('b-pause').onclick = function() { setSpd(this, 0); };
+        document.getElementById('b-play').onclick = function() { setSpd(this, 1); };
+        document.getElementById('b-ff').onclick = function() { setSpd(this, 10); };
+        
+        function setSpd(el, s) {
+            document.querySelectorAll('.navbar .controls .btn:not(.btn-graph):not(.btn-warn)').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            speedMultiplier = s;
+            isRunning = s > 0;
+        }
+
+        let forceFlush = false;
+        const bFlush = document.getElementById('b-flush');
+        bFlush.onmousedown = () => forceFlush = true;
+        bFlush.onmouseup = () => forceFlush = false;
+        bFlush.onmouseleave = () => forceFlush = false;
+
+        let lastTime = 0;
+        function playbackLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const delta = timestamp - lastTime;
+            
+            if (isRunning && simData.length > 0) {
+                // Advance index based on speed (assuming 60fps, delta~16ms)
+                // 1x speed = 1 simulation step (1 min) per real frame -> very fast actually.
+                // Let's slow it down: 1x speed = 1 step per 100ms
+                if (delta > (100 / speedMultiplier)) {
+                    simIndex++;
+                    if (simIndex >= simData.length) {
+                        simIndex = 0; // loop
+                        loopCount++;
+                    }
+                    
+                    let currentData = { ...simData[simIndex] };
+                    
+                    // Accumulate time and yield across loops so the days keep counting up indefinitely
+                    if (loopCount > 0) {
+                        let maxTime = simData[simData.length-1].time_hr;
+                        let maxYield = simData[simData.length-1].total_distilled_L;
+                        currentData.time_hr += loopCount * maxTime;
+                        currentData.total_distilled_L += loopCount * maxYield;
+                    }
+
+                    updateDOMfromData(currentData);
+                    lastTime = timestamp;
+                }
+            }
+            requestAnimationFrame(playbackLoop);
+        }
+
+        function updateDOMfromData(data) {
+            if (!data || data.time_hr === undefined) return;
+            let hr = data.time_hr;
+            let day = Math.floor(hr / 24) + 1;
+            let timeOfDay = hr % 24;
+            let hh = Math.floor(timeOfDay); 
+            let mm = Math.floor((timeOfDay-hh)*60);
+            
+            document.getElementById('ui-day').innerText = day;
+            document.getElementById('ui-hr').innerText = `${hh.toString().padStart(2,'0')}:${mm.toString().padStart(2,'0')}`;
+            
+            let dni = (data.q_solar_kw / (8 * 0.7)) * 1000; // Reverse calc DNI
+            document.getElementById('ui-dni').innerText = Math.round(dni);
+            
+            let tds = data.tds_ppm;
+            document.getElementById('ui-tds').innerText = Math.round(tds);
+            let tdsPercent = Math.min(100, (tds / 10000) * 100);
+            document.getElementById('ui-tds-bar').style.width = tdsPercent + '%';
+            document.getElementById('l-tds-sensor').innerText = Math.round(tds) + " PPM";
+            
+            let yieldVol = data.total_distilled_L;
+            document.getElementById('ui-yield').innerText = yieldVol.toFixed(1);
+            
+            let t_boiler = data.t_boiler;
+            let t_pcm = data.t_pcm;
+            let pcm_melt = data.pcm_melt;
+            let boiler_vol = data.boiler_vol;
+
+            // Sensors
+            document.getElementById('l-warm').innerText = (t_boiler > 30 ? (t_boiler*0.4).toFixed(1) : "25.0") + "°C";
+            document.getElementById('l-steam').innerText = t_boiler > 50 ? t_boiler.toFixed(1) + "°C" : "25.0°C";
+            document.getElementById('l-wax-t').innerText = t_pcm.toFixed(1) + "°C";
+
+            let venting = t_boiler < 99 && t_boiler > 50;
+            document.getElementById('l-vent').innerText = venting ? "OPEN (VOCs)" : "CLOSED";
+            
+            let draining = tds > 10000 || forceFlush;
+
+            let feed = boiler_vol < 15 ? 0.1 : 0; // Pump on logic from controller
+            let q_b = (t_pcm > t_boiler) ? 1 : 0; // Visual flag for heat transfer
+            let prate = t_boiler >= 100 ? 1 : 0;
+
+            // Flows
+            let sO = (id, c) => document.getElementById(id).style.opacity = c ? 1 : 0;
+            sO('f-in', feed>0 || draining); 
+            sO('f-p2f', feed>0 || draining); 
+            sO('f-f2c', feed>0 || draining); 
+            sO('f-c2b', feed>0 || draining);
+
+            let sOp = t_boiler>50;
+            sO('f-steam-up', sOp);
+            sO('f-steam-cond', sOp && !venting);
+            sO('f-coil', sOp && !venting);
+            sO('f-store', prate>0 && !venting);
+            sO('f-steam-vent', sOp && venting);
+            sO('f-drain', draining);
+            
+            let d_b = document.getElementById('d-bubbles');
+            d_b.style.opacity = t_boiler>=100 ? 1 : 0;
+            document.getElementById('d-steam').style.opacity = t_boiler>90 ? 1:0;
+            // Valves
+            if(venting) document.getElementById('v-gas').classList.add('open'); else document.getElementById('v-gas').classList.remove('open');
+            if(draining) document.getElementById('v-sludge').classList.add('open'); else document.getElementById('v-sludge').classList.remove('open');
+            if(feed>0 || draining) document.getElementById('v-warm').classList.add('open'); else document.getElementById('v-warm').classList.remove('open');
+
+            // Wax Colors
+            let dw = document.getElementById('d-wax');
+            let loop = document.getElementById('f-wax-loop');
+            let waxColor = '#f8fafc';
+            let waxShadow = 'none';
+
+            if(t_pcm<65) {
+                dw.style.background = '#f8fafc'; 
+                dw.style.boxShadow = 'none';
+            }
+            else if(t_pcm<84) {
+                waxColor = '#fef08a';
+                waxShadow = 'drop-shadow(0 0 5px rgba(245, 158, 11, 0.4))';
+                dw.style.background = '#fef08a';
+                dw.style.boxShadow = 'inset 0 0 15px rgba(245, 158, 11, 0.2)';
+            }
+            else {
+                let l = 60 + pcm_melt*20;
+                waxColor = `hsl(45, 90%, ${l}%)`;
+                waxShadow = `drop-shadow(0 0 ${5+pcm_melt*10}px hsl(45, 90%, 60%))`;
+                dw.style.background = waxColor;
+                dw.style.boxShadow = `inset 0 0 20px rgba(245, 158, 11, 0.4), 0 0 ${10+pcm_melt*30}px hsl(45, 90%, 60%)`;
+            }
+
+            if(loop) {
+                loop.style.stroke = waxColor;
+                loop.style.filter = waxShadow;
+                loop.style.opacity = q_b ? 1 : 0.3;
+                loop.style.animationPlayState = q_b ? 'running' : 'paused';
+            }
+
+            // Rays & Sun
+            let raysOp = Math.max(0, dni/1000) * 0.8;
+            document.getElementById('ray-1').style.opacity = raysOp;
+            document.getElementById('ray-2').style.opacity = raysOp;
+            document.getElementById('ray-3').style.opacity = raysOp;
+            let ray4 = document.getElementById('ray-4');
+            if(ray4) ray4.style.opacity = raysOp;
+            
+            let dsun = document.getElementById('d-sun');
+            dsun.style.opacity = 0.2 + raysOp;
+            dsun.style.boxShadow = `0 0 ${raysOp*100}px #FF8C00`;
+
+            document.getElementById('lvl-boiler').style.height = `${(boiler_vol/20)*100}%`;
+            document.getElementById('lvl-storage').style.height = `${Math.min(100, (yieldVol/50)*100)}%`;
+            document.getElementById('lvl-filter').style.height = (feed>0||draining) ? '70%':'50%';
+        }
+
+        // Initialize
+        loadSimulationData();
+
+        // ----------------------------------------------------
+        // FALLBACK JS PHYSICS (In case CSV isn't available)
+        // ----------------------------------------------------
+        function startJSPhysicsFallback() {
+            // Include original physics if needed...
+            console.log("Fallback physics started.");
+            let f_t_sec = 6 * 3600;
+            let f_p_t_pcm = 25.0, f_p_melt = 0.0;
+            let f_p_t_boiler = 25.0, f_p_m_boiler = 10.0;
+            let f_p_tds = 1000.0, f_p_yield = 0.0;
+            
+            isRunning = true; speedMultiplier = 240;
+
+            let flT = 0;
+            function floop(t) {
+                if(!flT) flT=t;
+                let dr = (t-flT)/1000; flT=t;
+                if(isRunning && dr<0.2) {
+                    let dt = dr * speedMultiplier;
+                    f_t_sec += dt;
+                    let hr = f_t_sec / 3600;
+
+                    let dni = (hr%24>=6 && hr%24<=18) ? 1000 * Math.sin(Math.PI*(hr%24-6)/12) : 0;
+                    let q_sol = (dni * 8 * 0.7) / 1000;
+                    let q_b = (f_p_t_pcm > f_p_t_boiler) ? 0.25*(f_p_t_pcm - f_p_t_boiler) : 0;
+                    
+                    let q_net = q_sol - q_b;
+                    let e = q_net * dt;
+                    
+                    if (f_p_t_pcm < 85) {
+                        f_p_t_pcm += e / (80*2.1);
+                        if(f_p_t_pcm > 85){ f_p_melt += (f_p_t_pcm-85)*2.1/210; f_p_t_pcm=85; }
+                    } else if (Math.abs(f_p_t_pcm - 85)<0.1 && f_p_melt>=0 && f_p_melt<=1) {
+                        f_p_melt += e / (80*210);
+                        if(f_p_melt > 1){ f_p_t_pcm += (f_p_melt-1)*210/2.4; f_p_melt=1; }
+                        else if(f_p_melt < 0){ f_p_t_pcm -= Math.abs(f_p_melt)*210/2.1; f_p_melt=0; }
+                    } else {
+                        f_p_t_pcm += e / (80*2.4);
+                        if(f_p_t_pcm < 85){ f_p_melt -= (85-f_p_t_pcm)*2.4/210; f_p_t_pcm=85; }
+                    }
+                    if(f_p_t_pcm<25) { f_p_t_pcm=25; f_p_melt=0; }
+
+                    let is_draining = f_p_tds > 10000 || forceFlush;
+                    let feed = (f_p_m_boiler < 5) ? 0.1 : 0;
+                    if(is_draining) { f_p_m_boiler-=(0.5*dt); if(f_p_m_boiler<1) f_p_m_boiler=1; feed=0.1; }
+
+                    let dm = feed*dt;
+                    if(dm>0 && f_p_m_boiler<20) {
+                        let pe = f_p_m_boiler*f_p_t_boiler;
+                        let ps = f_p_m_boiler*f_p_tds;
+                        f_p_m_boiler += dm;
+                        f_p_t_boiler = (pe + dm*25)/f_p_m_boiler;
+                        f_p_tds = (ps + dm*1000)/f_p_m_boiler;
+                    }
+
+                    f_p_t_boiler += (q_b*dt)/(f_p_m_boiler*4.184);
+                    let prate = 0;
+                    if(f_p_t_boiler>100) {
+                        let sm = (f_p_t_boiler-100)*f_p_m_boiler*4.184/2260;
+                        f_p_t_boiler=100;
+                        if(sm>f_p_m_boiler) sm=f_p_m_boiler;
+                        prate = sm/dt;
+                        let ms = f_p_m_boiler*f_p_tds;
+                        f_p_m_boiler -= sm;
+                        if(f_p_m_boiler>0) f_p_tds = ms/f_p_m_boiler;
+                    }
+
+                    let venting = f_p_t_boiler < 99 && f_p_t_boiler > 50;
+                    if(!venting && prate>0) f_p_yield += prate*dt;
+
+                    updateDOMfromData({
+                        time_hr: hr,
+                        q_solar_kw: q_sol,
+                        t_pcm: f_p_t_pcm,
+                        pcm_melt: f_p_melt,
+                        t_boiler: f_p_t_boiler,
+                        boiler_vol: f_p_m_boiler,
+                        tds_ppm: f_p_tds,
+                        total_distilled_L: f_p_yield
+                    });
+                }
+                requestAnimationFrame(floop);
+            }
+            requestAnimationFrame(floop);
+        }
+    </script>
+</body>
+</html>
