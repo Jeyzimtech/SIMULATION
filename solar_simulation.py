@@ -197,8 +197,8 @@ class SupervisoryController:
 
 def run_simulation(days=3):
     print("Initializing Solar-Thermal Distillation Simulation...")
-    # Increased Area to hit 50-80L/day target
-    csp = CSPModule(area=9.0, efficiency=0.85) 
+    # Area tuned to hit the middle of the 50-80L range (~70L)
+    csp = CSPModule(area=11.0, efficiency=0.85) 
     # Optimized PCM storage to balance startup time and night-time boiling
     pcm = ParrafinBatteryModule(mass=350) 
     boiler = BoilerModule()
@@ -289,8 +289,8 @@ def run_simulation(days=3):
         writer.writerows(history)
         
     avg_per_24 = total_distilled / days
-    print(f"Simulation completed! Total Distilled Water over {days} days: {total_distilled:.2f} Liters")
-    print(f"Average Production: {avg_per_24:.2f} L / 24hrs (Target: 22.0L)")
+    print(f"Simulation completed! Total Distilled Water over {days} day(s): {total_distilled:.2f} Liters")
+    print(f"Average Production: {avg_per_24:.2f} L / 24hrs (Target: 50-80L)")
     print(f"Data saved to {csv_file}")
     
     if PLOTTING_AVAILABLE:
@@ -340,4 +340,4 @@ def plot_results(csv_file):
     print("Graph saved as simulation_graphs.png")
 
 if __name__ == "__main__":
-    run_simulation()
+    run_simulation(days=1)
