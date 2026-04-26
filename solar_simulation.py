@@ -229,6 +229,12 @@ def run_simulation(days=3):
         
         p_pump = 0.2 if controller.pump_on else 0.05 # kW for pump vs electronics
         battery_soc = battery.step(p_pv, p_pump, dt)
+        
+        power_source = "BATTERY"
+        if p_pv > p_pump:
+            power_source = "SOLAR"
+        elif p_pv > 0:
+            power_source = "HYBRID"
 
         # 2. Controller Execute
         time_min = time_seconds / 60.0
@@ -278,7 +284,8 @@ def run_simulation(days=3):
             "tds_ppm": boiler.tds_ppm,
             "total_distilled_L": total_distilled,
             "battery_soc": battery_soc,
-            "mineral_ppm": mineral_ppm
+            "mineral_ppm": mineral_ppm,
+            "power_source": power_source
         })
 
     # Save to CSV

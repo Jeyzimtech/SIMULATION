@@ -392,6 +392,7 @@
             <div class="panel">
                 <div class="panel-title">Solar Battery Storage</div>
                 <div class="panel-value val-battery"><span id="ui-bat" style="color:#10B981; font-size:1.8rem; margin-right:5px;">80</span> <span style="font-size:0.9rem;">%</span></div>
+                <div class="panel-sub">Source: <span id="ui-power-source" style="color:#60A5FA; font-weight:bold;">SOLAR</span></div>
             </div>
 
             <div class="panel">
@@ -752,6 +753,9 @@
             document.getElementById('l-warm').innerText = (t_boiler > 30 ? (t_boiler*0.4).toFixed(1) : "25.0") + "°C";
             document.getElementById('l-steam').innerText = t_boiler > 50 ? t_boiler.toFixed(1) + "°C" : "25.0°C";
             document.getElementById('l-wax-t').innerText = t_pcm.toFixed(1) + "°C";
+            document.getElementById('ui-bat').innerText = data.battery_soc.toFixed(1);
+            document.getElementById('ui-power-source').innerText = data.power_source;
+            document.getElementById('ui-power-source').style.color = data.power_source === 'SOLAR' ? '#F1C40F' : (data.power_source === 'HYBRID' ? '#10B981' : '#60A5FA');
             document.getElementById('l-bat').innerText = bat_soc.toFixed(1) + "%";
             document.getElementById('ui-bat').innerText = Math.round(bat_soc);
             document.getElementById('bat-level').style.height = bat_soc + "%";
