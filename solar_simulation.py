@@ -169,17 +169,21 @@ class SupervisoryController:
         self.drain_valve_open = False
         self.fractional_valve_dest = "VENT"
 
-    def execute(self, boiler_level, steam_temp, boiler_tds, battery_soc):
+    def execute(self, boiler_level, steam_temp, boiler_tds, battery_soc, time_min):
         # Level control - only pump if battery has energy
-        if boiler_level < 2.0 and battery_soc > 5:
+        if boiler_level < 5.0 and battery_soc > 5: # Higher minimum for stability
             self.pump_on = True
             self.inlet_valve_open = True
-        elif boiler_level > 8.0 or battery_soc <= 1:
+        elif boiler_level > 20.0 or battery_soc <= 1: # Increased upper limit
             self.pump_on = False
             self.inlet_valve_open = False
             
-        # Venting
-        if steam_temp < 100.0:
+        # Venting Logic (Requirement: 2-5 mins every hour before boiling/continuously)
+        # We trigger the VENT path if either temp is low OR during the periodic window
+        window_min = time_min % 60
+        is_vent_window = (2 <= window_min <= 5)
+        
+        if steam_temp < 100.0 or is_vent_window:
             self.fractional_valve_dest = "VENT"
         else:
             self.fractional_valve_dest = "CONDENSER"
@@ -193,14 +197,15 @@ class SupervisoryController:
 
 def run_simulation(days=3):
     print("Initializing Solar-Thermal Distillation Simulation...")
-    # Area tuned to hit ~22L/day given tracking and thermal losses
-    csp = CSPModule(area=2.0, efficiency=0.85) 
-    pcm = ParrafinBatteryModule(mass=80) 
+    # Increased Area to hit 50-80L/day target
+    csp = CSPModule(area=8.0, efficiency=0.85) 
+    # Massive PCM storage to sustain night-time boiling (Day production = Night production)
+    pcm = ParrafinBatteryModule(mass=800) 
     boiler = BoilerModule()
     heat_recv = HeatRecoveryModule()
     controller = SupervisoryController()
     mineral = MineralCartridgeModule()
-    battery = SolarBatteryModule(capacity_wh=2000)
+    battery = SolarBatteryModule(capacity_wh=5000) # Larger battery for higher throughput
     
     dt = 60 # 1 minute steps
     total_steps = int((days * 24 * 3600) / dt)
@@ -226,11 +231,13 @@ def run_simulation(days=3):
         battery_soc = battery.step(p_pv, p_pump, dt)
 
         # 2. Controller Execute
+        time_min = time_seconds / 60.0
         controller.execute(
             boiler_level=boiler.water_mass,
             steam_temp=boiler.t_water,
             boiler_tds=boiler.tds_ppm,
-            battery_soc=battery_soc
+            battery_soc=battery_soc,
+            time_min=time_min
         )
         
         # Actions applied
@@ -319,8 +326,9 @@ def plot_results(csv_file):
     
     axs[3].plot(df['time_hr'], df['total_distilled_L'], label='Cumulative Yield (L)', color='#27AE60', linewidth=3)
     days_sim = df['time_hr'].max() / 24
-    target_line = [ (h/24)*22 for h in df['time_hr'] ]
-    axs[3].plot(df['time_hr'], target_line, '--', color='#16A085', alpha=0.6, label='Target (22L/Day)')
+    # Requirement: 50L min, 80L max. We show the 80L target slope.
+    target_line = [ (h/24)*80 for h in df['time_hr'] ]
+    axs[3].plot(df['time_hr'], target_line, '--', color='#16A085', alpha=0.6, label='Target (80L/Day)')
     axs[3].set_ylabel('Volume (Liters)')
     axs[3].set_xlabel('Mission Time (Hours)')
     axs[3].set_title(f'Continuous Production: {df["total_distilled_L"].max()/days_sim:.1f}L/24hr Avg')
