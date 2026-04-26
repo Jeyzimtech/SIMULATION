@@ -125,7 +125,7 @@ class BoilerModule:
         self.cp_water = 4184
         self.h_vap = 2260000
     
-    def get_heat_transfer(self, t_pcm, U_coeff=120.0):
+    def get_heat_transfer(self, t_pcm, U_coeff=250.0):
         if t_pcm > self.t_water:
             return U_coeff * (t_pcm - self.t_water)
         return 0.0
@@ -198,9 +198,9 @@ class SupervisoryController:
 def run_simulation(days=3):
     print("Initializing Solar-Thermal Distillation Simulation...")
     # Increased Area to hit 50-80L/day target
-    csp = CSPModule(area=8.0, efficiency=0.85) 
-    # Massive PCM storage to sustain night-time boiling (Day production = Night production)
-    pcm = ParrafinBatteryModule(mass=800) 
+    csp = CSPModule(area=9.0, efficiency=0.85) 
+    # Optimized PCM storage to balance startup time and night-time boiling
+    pcm = ParrafinBatteryModule(mass=350) 
     boiler = BoilerModule()
     heat_recv = HeatRecoveryModule()
     controller = SupervisoryController()
