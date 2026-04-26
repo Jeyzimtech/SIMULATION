@@ -11,6 +11,30 @@ try:
 except ImportError:
     PLOTTING_AVAILABLE = False
 
+class MineralCartridgeModule:
+    """Post-distillation mineral addition."""
+    def __init__(self, target_concentration=50.0): # ppm of Ca/Mg
+        self.target_concentration = target_concentration
+        self.minerals_added_total = 0.0
+
+    def step(self, distilled_mass):
+        # Adds minerals to the distilled water
+        added_mass = distilled_mass * (self.target_concentration / 1e6)
+        self.minerals_added_total += added_mass
+        return self.target_concentration
+
+class SolarBatteryModule:
+    """Electrical storage for pumps and sensors."""
+    def __init__(self, capacity_wh=1000):
+        self.capacity_j = capacity_wh * 3600
+        self.charge_j = self.capacity_j * 0.8 # Start at 80%
+        self.efficiency = 0.95
+
+    def step(self, power_in, power_out, dt):
+        net_energy = (power_in * self.efficiency - power_out) * dt
+        self.charge_j = max(0, min(self.capacity_j, self.charge_j + net_energy))
+        return (self.charge_j / self.capacity_j) * 100
+
 class HeatRecoveryModule:
     """Pre-Filtration & Heat Recovery Unit."""
     def __init__(self, effectiveness=0.85):
@@ -34,15 +58,17 @@ class HeatRecoveryModule:
         return t_cold_out, m_dot_condensed_out
 
 class CSPModule:
-    """Solar Concentrator."""
-    def __init__(self, area=5.0, efficiency=0.7):
+    """Solar Concentrator with Sun Tracking."""
+    def __init__(self, area=1.8, efficiency=0.75):
         self.area = area
         self.efficiency = efficiency
+        self.is_tracking = True # Parabolic mirror follows the sun
 
     def step(self, time_of_day_hours, cloud_factor=1.0):
         # Time 0 is midnight. Sunrise at 6, Sunset at 18
-        if 6 <= time_of_day_hours <= 18:
-            dni = 1000 * math.sin(math.pi * (time_of_day_hours - 6) / 12)
+        if 6.5 <= time_of_day_hours <= 17.5:
+            # Tracking mirror maintains maximum irradiance normal to the surface
+            dni = 950 # Near-peak DNI during the day due to tracking
         else:
             dni = 0
             
@@ -93,13 +119,13 @@ class ParrafinBatteryModule:
 class BoilerModule:
     """Distillation Chamber."""
     def __init__(self):
-        self.water_mass = 5.0 # initial kg
+        self.water_mass = 2.0 # initial kg (reduced to speed up startup)
         self.t_water = 25.0
         self.tds_ppm = 1000.0 # Initial salinity
         self.cp_water = 4184
         self.h_vap = 2260000
     
-    def get_heat_transfer(self, t_pcm, U_coeff=150.0):
+    def get_heat_transfer(self, t_pcm, U_coeff=120.0):
         if t_pcm > self.t_water:
             return U_coeff * (t_pcm - self.t_water)
         return 0.0
@@ -143,12 +169,12 @@ class SupervisoryController:
         self.drain_valve_open = False
         self.fractional_valve_dest = "VENT"
 
-    def execute(self, boiler_level, steam_temp, boiler_tds):
-        # Level control
-        if boiler_level < 3.0:
+    def execute(self, boiler_level, steam_temp, boiler_tds, battery_soc):
+        # Level control - only pump if battery has energy
+        if boiler_level < 2.0 and battery_soc > 5:
             self.pump_on = True
             self.inlet_valve_open = True
-        elif boiler_level > 15.0:
+        elif boiler_level > 8.0 or battery_soc <= 1:
             self.pump_on = False
             self.inlet_valve_open = False
             
@@ -161,36 +187,50 @@ class SupervisoryController:
         # Flushing logic (simulating sludge drain)
         if boiler_tds > 10000.0: # 10,000 ppm limit
             self.drain_valve_open = True
-            self.pump_on = True # Flush with fresh water
+            if battery_soc > 5: self.pump_on = True # Flush with fresh water
         else:
             self.drain_valve_open = False
 
 def run_simulation(days=3):
     print("Initializing Solar-Thermal Distillation Simulation...")
-    csp = CSPModule(area=8.0) 
-    pcm = ParrafinBatteryModule(mass=120) 
+    # Area tuned to hit ~22L/day given tracking and thermal losses
+    csp = CSPModule(area=2.0, efficiency=0.85) 
+    pcm = ParrafinBatteryModule(mass=80) 
     boiler = BoilerModule()
     heat_recv = HeatRecoveryModule()
     controller = SupervisoryController()
+    mineral = MineralCartridgeModule()
+    battery = SolarBatteryModule(capacity_wh=2000)
     
     dt = 60 # 1 minute steps
     total_steps = int((days * 24 * 3600) / dt)
-    feed_flow_rate = 0.1 # kg/s when pump is on
+    feed_flow_rate = 0.05 # kg/s - slower feed to reduce thermal shock
     ambient_temp = 25.0
     
     total_distilled = 0.0
     history = []
+    feed_temp_preheated = ambient_temp
     
     for step in range(total_steps):
         time_seconds = step * dt
         time_hours = (time_seconds / 3600) % 24
         total_time_hr = time_seconds / 3600.0
         
-        # 1. Controller Execute
+        # 1. Solar Battery Step (PV simulation)
+        p_pv = 0
+        if 6 <= time_hours <= 18:
+            p_pv = 600 * math.sin(math.pi * (time_hours - 6) / 12) * 0.5 * 0.2 * 1000 # Simplified PV watts
+            p_pv = max(0, p_pv / 1000) # kW scale
+        
+        p_pump = 0.2 if controller.pump_on else 0.05 # kW for pump vs electronics
+        battery_soc = battery.step(p_pv, p_pump, dt)
+
+        # 2. Controller Execute
         controller.execute(
             boiler_level=boiler.water_mass,
             steam_temp=boiler.t_water,
-            boiler_tds=boiler.tds_ppm
+            boiler_tds=boiler.tds_ppm,
+            battery_soc=battery_soc
         )
         
         # Actions applied
@@ -200,19 +240,26 @@ def run_simulation(days=3):
         m_dot_feed = feed_flow_rate if controller.pump_on and controller.inlet_valve_open else 0.0
         feed_mass = m_dot_feed * dt
         
-        # 2. Thermal Environment
+        # 3. Thermal Environment
         q_solar = csp.step(time_hours)
         q_to_boiler = boiler.get_heat_transfer(pcm.t_pcm)
         
         pcm.step(q_in=q_solar, q_out=q_to_boiler, dt=dt)
-        m_dot_steam, t_steam = boiler.step(feed_mass, ambient_temp, q_to_boiler, dt)
+        # Use preheated water if available
+        m_dot_steam, t_steam = boiler.step(feed_mass, feed_temp_preheated, q_to_boiler, dt)
         
-        # 3. Heat Recovery / Conversion
-        condensed_rate = 0.0
+        # 4. Heat Recovery / Conversion
+        mineral_ppm = 0.0
         if controller.fractional_valve_dest == "CONDENSER" and m_dot_steam > 0:
-            # Simplified recovery (preheats incoming but returns condensed vol)
-            _, condensed_rate = heat_recv.step(max(0.001, m_dot_feed), ambient_temp, m_dot_steam, t_steam, dt)
-            total_distilled += condensed_rate * dt
+            # All steam is condensed, but recovery preheats the NEXT feed step
+            t_pre, _ = heat_recv.step(max(0.01, m_dot_feed), ambient_temp, m_dot_steam, t_steam, dt)
+            feed_temp_preheated = t_pre
+            
+            distilled_step = m_dot_steam * dt
+            total_distilled += distilled_step
+            mineral_ppm = mineral.step(distilled_step)
+        else:
+            feed_temp_preheated = ambient_temp
             
         history.append({
             "time_hr": total_time_hr,
@@ -222,7 +269,9 @@ def run_simulation(days=3):
             "t_boiler": boiler.t_water,
             "boiler_vol": boiler.water_mass,
             "tds_ppm": boiler.tds_ppm,
-            "total_distilled_L": total_distilled
+            "total_distilled_L": total_distilled,
+            "battery_soc": battery_soc,
+            "mineral_ppm": mineral_ppm
         })
 
     # Save to CSV
@@ -232,7 +281,9 @@ def run_simulation(days=3):
         writer.writeheader()
         writer.writerows(history)
         
+    avg_per_24 = total_distilled / days
     print(f"Simulation completed! Total Distilled Water over {days} days: {total_distilled:.2f} Liters")
+    print(f"Average Production: {avg_per_24:.2f} L / 24hrs (Target: 22.0L)")
     print(f"Data saved to {csv_file}")
     
     if PLOTTING_AVAILABLE:
@@ -253,10 +304,10 @@ def plot_results(csv_file):
     axs[0].legend()
     axs[0].grid(alpha=0.3)
     
-    axs[1].plot(df['time_hr'], df['pcm_melt'], label=r'Melt Fraction ($\alpha$)', color='#8E44AD', linewidth=2)
-    axs[1].fill_between(df['time_hr'], df['q_solar_kw']/df['q_solar_kw'].max(), alpha=0.2, color='#F1C40F', label='Solar Irradiance (Normalized)')
-    axs[1].set_ylabel('Melt Fraction / Energy')
-    axs[1].set_title('PCM Phase Storage Cycles')
+    axs[1].plot(df['time_hr'], df['battery_soc'], label='Solar Battery SoC (%)', color='#27AE60', linewidth=2)
+    axs[1].fill_between(df['time_hr'], df['q_solar_kw']/df['q_solar_kw'].max() if df['q_solar_kw'].max()>0 else 0, alpha=0.2, color='#F1C40F', label='Tracking Solar Heat (kW)')
+    axs[1].set_ylabel('Battery % / Heat')
+    axs[1].set_title('Electrical Storage & Tracking Solar Input')
     axs[1].legend()
     axs[1].grid(alpha=0.3)
     
@@ -267,9 +318,12 @@ def plot_results(csv_file):
     axs[2].grid(alpha=0.3)
     
     axs[3].plot(df['time_hr'], df['total_distilled_L'], label='Cumulative Yield (L)', color='#27AE60', linewidth=3)
+    days_sim = df['time_hr'].max() / 24
+    target_line = [ (h/24)*22 for h in df['time_hr'] ]
+    axs[3].plot(df['time_hr'], target_line, '--', color='#16A085', alpha=0.6, label='Target (22L/Day)')
     axs[3].set_ylabel('Volume (Liters)')
     axs[3].set_xlabel('Mission Time (Hours)')
-    axs[3].set_title('Continuous 24/7 Water Production')
+    axs[3].set_title(f'Continuous Production: {df["total_distilled_L"].max()/days_sim:.1f}L/24hr Avg')
     axs[3].legend()
     axs[3].grid(alpha=0.3)
     

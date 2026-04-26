@@ -132,6 +132,7 @@
 
         .val-solar { color: var(--solar); }
         .val-yield { color: var(--water); }
+        .val-battery { color: #10B981; }
 
         .salinity-panel {
             margin-top: auto;
@@ -192,6 +193,7 @@
         .f-heat { stroke: var(--heat); filter: drop-shadow(0 0 10px var(--heat)); stroke-dasharray: 20 20; animation-duration: 2s; }
         .f-ray { stroke: rgba(241, 196, 15, 0.4); stroke-width: 3; }
         .f-dirty { stroke: #8B4513; animation-duration: 0.4s; }
+        .f-battery { stroke: #10B981; stroke-width: 3; stroke-dasharray: 5 5; }
         
         @keyframes flowAnim { to { stroke-dashoffset: -24; } }
 
@@ -207,6 +209,11 @@
         .sp-cell { background: #1d4ed8; border: 1px solid rgba(255,255,255,0.1); }
         .sp-stand { width: 8px; height: 25px; background: #64748b; margin-top: -3px; }
         .sp-base { width: 40px; height: 6px; background: #94a3b8; border-radius: 3px; }
+
+        /* Solar Battery */
+        .hw-battery { left: 160px; top: 350px; width: 60px; height: 50px; background: #1e293b; border: 2px solid #10B981; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+        .bat-term { width: 12px; height: 5px; background: #10B981; border-radius: 2px 2px 0 0; position: absolute; top: -5px; }
+        .bat-fill { width: 80%; height: 70%; background: #10B981; border-radius: 1px; transition: height 0.5s; position: absolute; bottom: 5px; }
 
         /* Parabolic Mirror */
         .hw-mirror { left: 1190px; top: 600px; width: 160px; height: 70px; border-bottom: 12px solid #cbd5e1; border-radius: 0 0 160px 160px; box-shadow: 0 10px 15px rgba(255,255,255,0.1); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
@@ -228,7 +235,9 @@
         .mesh-rod { width: 25%; height: 100%; border: 1px solid #475569; background: repeating-linear-gradient(45deg, #1e293b, #1e293b 6px, #64748b 6px, #64748b 12px); border-radius: 4px; box-shadow: 2px 0 5px rgba(0,0,0,0.5); }
 
         .hw-condenser { left: 700px; top: 250px; width: 90px; height: 200px; border-radius: 45px; }
-        .hw-storage { left: 150px; top: 550px; width: 180px; height: 140px; border-radius: 12px; }
+        .hw-storage { left: 450px; top: 550px; width: 180px; height: 140px; border-radius: 12px; }
+        .hw-mineral { left: 330px; top: 580px; width: 80px; height: 100px; border: 2px solid #94a3b8; border-radius: 40px; background: repeating-linear-gradient(0deg, #334155, #334155 10px, #475569 10px, #475569 20px); overflow: hidden; }
+        .hw-storage-remin { left: 100px; top: 550px; width: 180px; height: 140px; border-radius: 12px; border-color: #10B981; }
 
         .hw-boiler { left: 880px; top: 220px; width: 240px; height: 280px; border-radius: 16px; }
         .f-wax-loop { fill:none; stroke-width: 8; stroke-dasharray: 25 25; animation: flowAnim 1.5s linear infinite; stroke: #f8fafc; transition: stroke 1s, filter 1s; }
@@ -261,6 +270,7 @@
 
         .ui-label.heat-line { border-left-color: var(--heat); }
         .ui-label.warn-line { border-left-color: var(--warn); }
+        .ui-label.bat-line { border-left-color: #10B981; }
 
         .sensor-box {
             position: absolute;
@@ -278,6 +288,7 @@
         }
         .sensor-box.heat { border-color: var(--heat); color: var(--heat); }
         .sensor-box.warn { border-color: var(--warn); color: var(--warn); }
+        .sensor-box.bat { border-color: #10B981; color: #10B981; }
         .sensor-label { font-family: var(--font-ui); font-size: 0.6rem; color: #94a3b8; margin-bottom: 2px; text-transform: uppercase;}
 
         /* Modal for Graphs */
@@ -379,7 +390,12 @@
             </div>
 
             <div class="panel">
-                <div class="panel-title">Extracted Yield</div>
+                <div class="panel-title">Solar Battery Storage</div>
+                <div class="panel-value val-battery"><span id="ui-bat" style="color:#10B981; font-size:1.8rem; margin-right:5px;">80</span> <span style="font-size:0.9rem;">%</span></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-title">Extracted Yield (Target: 22L/24h)</div>
                 <div class="panel-value val-yield"><span id="ui-yield" style="color:var(--water); font-size:1.8rem; margin-right:5px;">30.5</span> <span style="font-size:0.9rem;">Liters</span></div>
             </div>
 
@@ -410,6 +426,10 @@
                     <!-- ray from sun to solar panel -->
                     <path class="f-ray" id="ray-4" d="M 80 140 L 70 300" marker-end="url(#arrow)" />
 
+                    <!-- Battery wires -->
+                    <path class="f-battery" d="M 130 350 L 160 350" />
+                    <path class="f-battery" d="M 220 375 L 320 375 L 320 310" />
+
                     <path class="pipe" d="M 40 270 L 320 270" />
                     <path class="flow f-water" id="f-in" d="M 40 270 L 320 270" />
 
@@ -434,8 +454,15 @@
                     <path class="pipe" d="M 1000 120 L 1350 120" />
                     <path class="flow f-steam" id="f-steam-vent" style="stroke: var(--warn); filter: drop-shadow(0 0 5px var(--warn));" d="M 1000 120 L 1350 120" />
 
-                    <path class="pipe" d="M 750 470 L 750 620 L 330 620 L 330 550" />
-                    <path class="flow f-water" id="f-store" d="M 750 470 L 750 620 L 330 620 L 330 550" />
+                    <!-- Condenser to distilled storage -->
+                    <path class="pipe" d="M 750 470 L 750 620 L 630 620" />
+                    <path class="flow f-water" id="f-store" d="M 750 470 L 750 620 L 630 620" />
+
+                    <!-- Distilled storage to mineral cartridge to remineralized storage -->
+                    <path class="pipe" d="M 450 630 L 410 630" />
+                    <path class="flow f-water" id="f-to-mineral" d="M 450 630 L 410 630" />
+                    <path class="pipe" d="M 330 630 L 280 630" />
+                    <path class="flow f-water" id="f-to-remin" d="M 330 630 L 280 630" />
 
                     <path class="pipe" d="M 1000 500 L 1000 700" />
                     <path class="flow f-dirty" id="f-drain" d="M 1000 500 L 1000 700" />
@@ -457,6 +484,11 @@
                     </div>
                     <div class="sp-stand"></div>
                     <div class="sp-base"></div>
+                </div>
+
+                <div class="hw hw-battery">
+                    <div class="bat-term"></div>
+                    <div class="bat-fill" id="bat-level"></div>
                 </div>
 
                 <div class="hw hw-mirror">
@@ -497,6 +529,12 @@
                     <div class="t-water" id="lvl-storage" style="height: 15%;"></div>
                 </div>
 
+                <div class="hw hw-mineral"></div>
+
+                <div class="hw tank hw-storage-remin">
+                    <div class="t-water" id="lvl-storage-remin" style="height: 12%;"></div>
+                </div>
+
                 <!-- VALVES -->
                 <div class="t-valve" id="v-gas" style="left: 1140px; top: 108px;"></div>
                 <div class="t-valve" id="v-warm" style="left: 825px; top: 438px;"></div>
@@ -504,19 +542,22 @@
 
                 <!-- LABELS -->
                 <div class="ui-label has-line" style="top: 410px; left: 15px;">Solar<br>panel</div>
-                <div class="ui-label has-line heat-line" style="top: 720px; left: 1190px;">parabolic concentrated solar<br>directing heat to the paraffin wax</div>
+                <div class="ui-label has-line bat-line" style="top: 410px; left: 160px;">Energy Storage<br>(Batteries)</div>
+                <div class="ui-label has-line heat-line" style="top: 720px; left: 1190px;">parabolic tracking mirror<br>directing heat to the paraffin wax</div>
                 <div class="ui-label has-line" style="top: 60px; left: 400px;">pre-Filtration Chamber</div>
                 
                 <div class="ui-label has-line" style="top: 190px; left: 290px;">Solar Pump</div>
                 <div class="ui-label has-line" style="top: 240px; left: 110px;">Salinated<br>Water In</div>
                 
-                <div class="ui-label has-line" style="top: 160px; left: 580px;">filtered (Clean)<br>Water</div>
+                <div class="ui-label has-line" style="top: 160px; left: 580px;">clear<br>water</div>
                 
                 <div class="ui-label has-line" style="top: 90px; left: 850px;">steam Outlet</div>
                 
                 <div class="ui-label has-line" style="top: 420px; left: 790px;">warm Water In</div>
                 
-                <div class="ui-label has-line" style="top: 700px; left: 150px;">clear Water Storage Tank</div>
+                <div class="ui-label has-line" style="top: 700px; left: 450px;">distilled Water Storage Tank</div>
+                <div class="ui-label has-line" style="top: 540px; left: 320px;">Mineral cartridge<br>(Ca / Mg Addition)</div>
+                <div class="ui-label has-line" style="top: 700px; left: 100px; border-left-color:#10B981;">Remineralized Water Storage</div>
                 
                 <div class="ui-label has-line heat-line" style="top: 435px; left: 1120px;">heat Conductor Wire</div>
                 <div class="ui-label has-line heat-line" style="top: 380px; left: 1150px;">in</div>
@@ -539,6 +580,11 @@
                     <div id="l-vent">CLOSED</div>
                 </div>
 
+                <div class="sensor-box bat" style="top: 350px; left: 230px;">
+                    <div class="sensor-label">BAT SENSOR</div>
+                    <div id="l-bat">80.0%</div>
+                </div>
+
                 <div class="sensor-box" style="top: 480px; left: 810px;">
                     <div class="sensor-label">SENSOR</div>
                     <div id="l-warm">40.0°C</div>
@@ -557,6 +603,11 @@
                 <div class="sensor-box heat" style="top: 530px; left: 1250px;">
                     <div class="sensor-label">SENSOR</div>
                     <div id="l-wax-t">116.5°C</div>
+                </div>
+
+                <div class="sensor-box" style="top: 610px; left: 330px; border-color:#94a3b8; color:#94a3b8;">
+                    <div class="sensor-label">MINERALS</div>
+                    <div id="l-mineral">50 PPM</div>
                 </div>
 
             </div>
@@ -644,9 +695,6 @@
             const delta = timestamp - lastTime;
             
             if (isRunning && simData.length > 0) {
-                // Advance index based on speed (assuming 60fps, delta~16ms)
-                // 1x speed = 1 simulation step (1 min) per real frame -> very fast actually.
-                // Let's slow it down: 1x speed = 1 step per 100ms
                 if (delta > (100 / speedMultiplier)) {
                     simIndex++;
                     if (simIndex >= simData.length) {
@@ -656,7 +704,6 @@
                     
                     let currentData = { ...simData[simIndex] };
                     
-                    // Accumulate time and yield across loops so the days keep counting up indefinitely
                     if (loopCount > 0) {
                         let maxTime = simData[simData.length-1].time_hr;
                         let maxYield = simData[simData.length-1].total_distilled_L;
@@ -682,7 +729,7 @@
             document.getElementById('ui-day').innerText = day;
             document.getElementById('ui-hr').innerText = `${hh.toString().padStart(2,'0')}:${mm.toString().padStart(2,'0')}`;
             
-            let dni = (data.q_solar_kw / (8 * 0.7)) * 1000; // Reverse calc DNI
+            let dni = (data.q_solar_kw * 1000) / (2.0 * 0.85); 
             document.getElementById('ui-dni').innerText = Math.round(dni);
             
             let tds = data.tds_ppm;
@@ -698,23 +745,32 @@
             let t_pcm = data.t_pcm;
             let pcm_melt = data.pcm_melt;
             let boiler_vol = data.boiler_vol;
+            let bat_soc = data.battery_soc || 0;
+            let mineral_ppm = data.mineral_ppm || 0;
 
             // Sensors
             document.getElementById('l-warm').innerText = (t_boiler > 30 ? (t_boiler*0.4).toFixed(1) : "25.0") + "°C";
             document.getElementById('l-steam').innerText = t_boiler > 50 ? t_boiler.toFixed(1) + "°C" : "25.0°C";
             document.getElementById('l-wax-t').innerText = t_pcm.toFixed(1) + "°C";
+            document.getElementById('l-bat').innerText = bat_soc.toFixed(1) + "%";
+            document.getElementById('ui-bat').innerText = Math.round(bat_soc);
+            document.getElementById('bat-level').style.height = bat_soc + "%";
+            document.getElementById('l-mineral').innerText = mineral_ppm > 0 ? mineral_ppm.toFixed(0) + " PPM" : "0 PPM";
 
             let venting = t_boiler < 99 && t_boiler > 50;
             document.getElementById('l-vent').innerText = venting ? "OPEN (VOCs)" : "CLOSED";
             
             let draining = tds > 10000 || forceFlush;
 
-            let feed = boiler_vol < 15 ? 0.1 : 0; // Pump on logic from controller
-            let q_b = (t_pcm > t_boiler) ? 1 : 0; // Visual flag for heat transfer
+            let feed = boiler_vol < 15 && bat_soc > 5 ? 0.1 : 0; 
+            let q_b = (t_pcm > t_boiler) ? 1 : 0; 
             let prate = t_boiler >= 100 ? 1 : 0;
 
             // Flows
-            let sO = (id, c) => document.getElementById(id).style.opacity = c ? 1 : 0;
+            let sO = (id, c) => {
+                let el = document.getElementById(id);
+                if(el) el.style.opacity = c ? 1 : 0;
+            };
             sO('f-in', feed>0 || draining); 
             sO('f-p2f', feed>0 || draining); 
             sO('f-f2c', feed>0 || draining); 
@@ -725,6 +781,8 @@
             sO('f-steam-cond', sOp && !venting);
             sO('f-coil', sOp && !venting);
             sO('f-store', prate>0 && !venting);
+            sO('f-to-mineral', prate>0 && !venting);
+            sO('f-to-remin', prate>0 && !venting);
             sO('f-steam-vent', sOp && venting);
             sO('f-drain', draining);
             
@@ -781,6 +839,7 @@
 
             document.getElementById('lvl-boiler').style.height = `${(boiler_vol/20)*100}%`;
             document.getElementById('lvl-storage').style.height = `${Math.min(100, (yieldVol/50)*100)}%`;
+            document.getElementById('lvl-storage-remin').style.height = `${Math.min(100, (yieldVol/50)*100)}%`;
             document.getElementById('lvl-filter').style.height = (feed>0||draining) ? '70%':'50%';
         }
 
